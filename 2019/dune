@@ -1,0 +1,9 @@
+(executable
+  (name aoc2019)
+  (public_name aoc2019)
+  (package aoc2019)
+  (modes native)
+  (preprocess (pps ppx_deriving.std ppx_deriving_yojson))
+  (libraries core))
+
+(copy_files# 1/*.ml*)
