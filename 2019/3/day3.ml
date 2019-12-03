@@ -36,8 +36,6 @@ let single_step_of_movement =
   | D d -> (0, sign (-d))
   | U d -> (0, sign d)
 
-let manhattan_dist (x1, y1) (x2, y2) =
-  abs (x1 - x2) + abs (y1 - y2)
 
 let dist_of_movement = function
   | R d
