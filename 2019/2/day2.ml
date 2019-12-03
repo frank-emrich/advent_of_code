@@ -1,24 +1,18 @@
 let rec eval vals pos =
   let opcode = vals.(pos) in
+  let fun_of_opcode = function
+      | 1 -> ( + )
+      | 2 -> ( * )
+      | opc -> failwith (Printf.sprintf "Illegal opcode %d" opc)
+  in
   match opcode with
-    | 1 ->
-       let (s1, s2, t) = vals.(pos + 1), vals.(pos + 2), vals.(pos + 3) in
-       let result = vals.(s1) + vals.(s2) in
-       let new_vals = Array.copy vals in
-       new_vals.(t) <- result;
-       eval new_vals (pos + 4)
-
-    | 2 ->
-       let (s1, s2, t) = vals.(pos + 1), vals.(pos + 2), vals.(pos + 3) in
-       let result = vals.(s1) * vals.(s2) in
-       let new_vals = Array.copy vals in
-       new_vals.(t) <- result;
-       eval new_vals (pos + 4)
     | 99 -> vals
-    | _ ->
-       (* same as above, here for debugging *)
-       vals
-
+    | op ->
+       let (s1, s2, t) = vals.(pos + 1), vals.(pos + 2), vals.(pos + 3) in
+       let op_fun = fun_of_opcode op in
+       let result = op_fun vals.(s1)  vals.(s2) in
+       vals.(t) <- result;
+       eval vals (pos + 4)
 
 let solve () =
   let first_line = Aoc_utils.read_file "2/data.txt" |> List.hd in
