@@ -8,7 +8,12 @@ end
 
 let print_solutions =
   let modules : (module AOC_SOLVER) list=
-    [(module Day1)]
+    [
+      (module Day1);
+      (module Day2);
+      (module Day3)
+    ]
+
   in
   let print_solution_parts day_z_based solver_module =
     let module Solver = (val solver_module : AOC_SOLVER) in

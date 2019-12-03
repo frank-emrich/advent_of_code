@@ -7,3 +7,5 @@
   (libraries core))
 
 (copy_files# 1/*.ml*)
+(copy_files# 2/*.ml*)
+(copy_files# 3/*.ml*)
