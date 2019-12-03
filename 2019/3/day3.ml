@@ -18,6 +18,7 @@ let parse_mov mov_str =
   | 'U' -> U dist
   | _ -> failwith "Could not parse step"
 
+
 type position = int * int
 
 let single_step_of_movement =
@@ -48,81 +49,74 @@ let dist_of_movement = function
 let move_pos (x1, y1) (x2, y2) =
   (x1 + x2, y1 + y2)
 
+module Position_Comparable = Core.Tuple.Comparable(Core.Int)(Core.Int)
+module Position_Map = Position_Comparable.Map
 
-let trace_path
-    (pos_handler : 'a -> position -> 'a)
-    (accumulator : 'a)
-    (movements : movement list)
-    position
-       : ('a * position) =
-
-  let rec follow_step acc pos step remaining_steps =
-    Printf.printf "following position %d, %d\n" (fst pos) (snd pos);
+let build_pos_map movements : (int Position_Map.t) =
+  let handle_pos (map : int Position_Map.t) pos step_count =
+    let min_steps_to_pos =
+      match Position_Map.find map pos with
+      | None -> step_count
+      | Some prev_steps -> min step_count prev_steps
+    in
+    Position_Map.set map ~key:pos ~data:min_steps_to_pos
+  in
+  let rec follow_step acc pos step remaining_steps step_count =
     if remaining_steps = 0 then
-      acc, pos
+      acc, pos, step_count
     else
       let new_pos = move_pos pos step in
-      let new_acc = pos_handler acc new_pos in
-      follow_step new_acc new_pos step (remaining_steps - 1)
+      let new_acc = handle_pos acc new_pos step_count in
+      follow_step new_acc new_pos step (remaining_steps - 1) (step_count + 1)
   in
-  let follow_movement (acc, pos) mov =
+  let follow_movement (acc, pos, step_count) mov =
     let step = single_step_of_movement mov in
     let dist = dist_of_movement mov in
-    let new_acc, new_pos = follow_step acc pos step dist in
-    new_acc, new_pos
+    let new_acc, new_pos, new_step_count =
+      follow_step acc pos step dist step_count
+    in
+    new_acc, new_pos, new_step_count
   in
-  let acc, (x, y) = List.fold_left follow_movement (accumulator, position) movements in
-  Printf.printf "final position of trace_path: %d, %d\n" x y;
-  acc, (x, y)
+  let map, _, _ =
+    List.fold_left follow_movement (Position_Map.empty, (0,0), 1) movements in
+  map
 
 
-
-module Position_Comparable = Core.Tuple.Comparable(Core.Int)(Core.Int)
-module Position_Set = Position_Comparable.Set
-
-
-let build_pos_set movements =
-  let initial_set = Position_Set.empty in
-  let pos_set, _ =
-    trace_path Position_Set.add initial_set movements (0,0) in
-  pos_set
-
-
-let find_intersections movements position_set =
-  let check_intersection intersections pos =
-    if Position_Set.mem position_set pos then
-      (Printf.printf "Found intersection at %d,%d\n" (fst pos) (snd pos);
-      pos :: intersections)
-    else
-      intersections
+let find_intersections pos_map_1 pos_map_2 =
+  let check_intersection  ~key:pos ~data:steps_1 intersections =
+    match Position_Map.find pos_map_2 pos with
+      | None -> intersections
+      | Some steps_2 ->
+         (pos, steps_1, steps_2) :: intersections
   in
-  trace_path check_intersection [] movements (0, 0) |> fst
+  Position_Map.fold pos_map_1 ~init:[] ~f:check_intersection
 
-let find_max_dist =
-  let dist (x, y) = abs x + abs y in
-  let min_init = List.hd points |> dist in
-  List.fold_left
-    (fun m p -> min m @@ dist p)
-    min_init
 
+let find_min_intersection mk_init min intersections =
+  let min_init = List.hd intersections |> mk_init in
+  List.fold_left min min_init intersections
 
 
 let solve () =
   let input = Aoc_utils.read_file "3/data.txt" in
-  let first_wire =
-    List.nth input 0
-    |> String.split_on_char ','
+  let mk_position_map str =
+    String.split_on_char ',' str
     |> List.map parse_mov
-  in
-  let second_wire =
-    List.nth input 1
-    |> String.split_on_char ','
-    |> List.map parse_mov
-  in
-  let first_part =
-    build_pos_set first_wire
-    |> find_intersections second_wire
-    |> find_max_dist
+    |> build_pos_map
   in
 
-  [string_of_int first_part]
+  let pos_map_1 = mk_position_map @@ List.nth input 0 in
+  let pos_map_2 = mk_position_map @@ List.nth input 1 in
+  let intersections = find_intersections pos_map_1 pos_map_2 in
+
+  let man_dist ((x, y), _, _) = abs x + abs y in
+  let comb_steps (_, steps_1, steps_2) = steps_1 + steps_2 in
+  let mk_min f = (fun m i -> min m @@ f i) in
+
+  let first_part =
+    find_min_intersection man_dist (mk_min man_dist) intersections in
+  let second_part =
+    find_min_intersection comb_steps (mk_min comb_steps) intersections in
+
+
+  [string_of_int first_part; string_of_int second_part]
