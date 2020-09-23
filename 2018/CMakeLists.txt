@@ -31,3 +31,8 @@ add_library(day4 STATIC src/day4/day4.cpp )
 target_include_directories(day4 PUBLIC src/day4/)
 target_link_libraries(aoc_2018 PUBLIC day4)
 target_link_libraries(day4 PUBLIC utils)
+
+add_library(day5 STATIC src/day5/day5.cpp)
+target_include_directories(day5 PUBLIC src/day5/)
+target_link_libraries(aoc_2018 PUBLIC day5)
+target_link_libraries(day5 PUBLIC utils)

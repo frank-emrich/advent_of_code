@@ -4,8 +4,10 @@
 #include <array>
 #include <chrono>
 #include <iostream>
+#include <iterator>
 #include <numeric>
 #include <regex>
+#include <tuple>
 #include <unordered_map>
 
 #include <aoc_utils.h>
@@ -105,7 +107,6 @@ void finalize_shift(unordered_map<int, array<int, 60>> &guard_sleep_times,
   array<int, 60> &prev_sleep_mins = guard_sleep_times[guard_id];
   for (int i = 0; i < 60; ++i)
     prev_sleep_mins[i] += asleep_minutes[i];
-
 }
 
 unordered_map<int, array<int, 60>> processEvents(vector<string> const &input) {
@@ -163,14 +164,7 @@ unordered_map<int, array<int, 60>> processEvents(vector<string> const &input) {
 
 int sum(array<int, 60> const &a) { return accumulate(a.cbegin(), a.cend(), 0); }
 
-} // namespace Day4
-
-tuple<string, string> solve_day4() {
-  vector<string> specs = lines_of_file(Day4::input_path);
-
-  unordered_map<int, array<int, 60>> guard_sleep_times =
-      Day4::processEvents(specs);
-
+string part_one(unordered_map<int, array<int, 60>> guard_sleep_times) {
   auto max_entry = max_element(
       guard_sleep_times.begin(), guard_sleep_times.end(), [](auto e1, auto e2) {
         return Day4::sum(e1.second) < Day4::sum(e2.second);
@@ -195,6 +189,40 @@ tuple<string, string> solve_day4() {
 
   int result = max_entry->first * max_minute;
 
-  return make_tuple(to_string(result), "");
+  return to_string(result);
+}
+
+string part_two(unordered_map<int, array<int, 60>> guard_sleep_times) {
+
+
+  int max_val = -1;
+  int max_pos = -1;
+  int max_guard = -1;
+  for(auto& entry : guard_sleep_times) {
+    auto b = entry.second.cbegin();
+    auto e = entry.second.cend();
+    auto max_it = max_element(b,e);
+    if(*max_it > max_val) {
+      max_val = *max_it;
+      max_guard = entry.first;
+      max_pos = distance(b, max_it);
+    }
+  }
+
+  return to_string(max_guard * max_pos);
+}
+
+
+} // namespace Day4
+
+tuple<string, string> solve_day4() {
+  vector<string> specs = lines_of_file(Day4::input_path);
+
+  unordered_map<int, array<int, 60>> guard_sleep_times =
+      Day4::processEvents(specs);
+
+  return make_tuple(Day4::part_one(guard_sleep_times), Day4::part_two(guard_sleep_times));
+
+
 }
 } // namespace AoC2018

@@ -1,6 +1,7 @@
 #include "aoc_utils.h"
 
 #include <fstream>
+#include <regex>
 
 
 using namespace std;
@@ -16,4 +17,10 @@ vector<string> lines_of_file(const string& path) {
   }
   return result;
 }
+
+string trim(string const& s) {
+    regex e("^\\s+|\\s+$");
+    return regex_replace(s, e, "");
+}
+
 }
