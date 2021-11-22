@@ -119,7 +119,7 @@ let map1 = ".#..#.....#####....#...##"
 let best_asteroid ast_map =
   let count_lines p1 lines = Set.fold ~init:0 ~f:(fun sum set -> sum + Set.length set) in
   let point_to_observable = Map.map ast_map ~f:count_lines in
-  let choose_best ((max_point, max_count) as prev) ~key:point ~data:count =
+  let choose_best ~key:point ~data:count ((max_point, max_count) as prev) =
     if count >= max_count then
       (point, count)
     else
