@@ -31,11 +31,15 @@ let make_op_fun (op_code : int) : state -> (Z.t * int) array -> state =
     { state with data = new_data; index = inc_index state.index args }
   in
   let mk_adjust_relative_base state args =
-    { state with relative_base = state.relative_base + (fst args.(0) |> Z.to_int) }
+    {
+      state with
+      relative_base = state.relative_base + (fst args.(0) |> Z.to_int);
+      index = inc_index state.index args;
+    }
   in
   match op_code with
-  | 1 -> mk_arith ( Z.( + ) )
-  | 2 -> mk_arith ( Z. ( * ) )
+  | 1 -> mk_arith Z.( + )
+  | 2 -> mk_arith Z.( * )
   | 3 ->
       fun state args ->
         let next_input = List.hd_exn state.input in
@@ -56,10 +60,10 @@ let make_op_fun (op_code : int) : state -> (Z.t * int) array -> state =
           output = fst args.(0) :: state.output;
           index = inc_index state.index args;
         }
-  | 5 -> mk_cond_jmp (( Z.Compare.( <> ) ) Z.zero)
-  | 6 -> mk_cond_jmp (( Z.Compare.( = ) ) Z.zero)
-  | 7 -> mk_comp ( Z.Compare.( < ) )
-  | 8 -> mk_comp ( Z.Compare.( = ) )
+  | 5 -> mk_cond_jmp (Z.Compare.( <> ) Z.zero)
+  | 6 -> mk_cond_jmp (Z.Compare.( = ) Z.zero)
+  | 7 -> mk_comp Z.Compare.( < )
+  | 8 -> mk_comp Z.Compare.( = )
   | 9 -> mk_adjust_relative_base
   | 99 -> fun state _args -> { state with stop = true }
   | bad -> failwith @@ Printf.sprintf "unexpected op_code: %d\n" bad
@@ -108,8 +112,8 @@ let fetch_args state arg_index param_count param_specs =
         (* Printf.printf "indirect index is %d\n" indirect_index; *)
         args.(index) <- (indirect_result, indirect_index)
     | `Relative ->
-        let relative_index : int=
-          (Z.to_int (read_memory state (arg_index + index))) + state.relative_base
+        let relative_index : int =
+          Z.to_int (read_memory state (arg_index + index)) + state.relative_base
         in
         let relative_result = read_memory state relative_index in
         args.(index) <- (relative_result, relative_index)
@@ -125,11 +129,12 @@ let rec eval (state : state) : state =
   let args = fetch_args state (state.index + 1) param_count param_specs in
   let op_fun = make_op_fun op_code in
   let new_state = op_fun state args in
+  (* Printf.printf "after eval, data has now size: %d\n%!" (IntMap.length state.data); *)
   if new_state.stop then new_state else eval new_state
 
 let run input data =
   let mapify (data, index) num =
-    (IntMap.set data ~key:index ~data:(Z.of_int num), index + 1)
+    (IntMap.set data ~key:index ~data:num, index + 1)
   in
   let initial_state =
     {
@@ -147,7 +152,19 @@ let test () =
   let part_two_larger_prog =
     [3;21;1008;21;8;20;1005;20;22;107;8;21;20;1006;20;31;
      1106;0;36;98;0;0;1002;21;125;20;4;20;1105;1;46;104;
-     999;1105;1;46;1101;1000;1;20;4;20;1105;1;46;98;99] in
+     999;1105;1;46;1101;1000;1;20;4;20;1105;1;46;98;99] [@ocamlformat "disable=true"]
+  in
+  let day9_quine =
+    List.map ~f:Z.of_int
+      [
+        109; 1; 204; -1; 1001; 100; 1; 100; 1008; 100; 16; 101; 1006; 101; 0; 99;
+      ]
+  in
+  let day9_data =
+    let first_line = Aoc_utils.read_file "9/data.txt" |> List.hd_exn in
+    let numbers_str = String.split_on_chars ~on:[ ',' ] first_line in
+    List.map ~f:Int.of_string numbers_str
+  in
   let tests =
     [
        (*             0    1     2    3    4    5    6   *)
@@ -164,34 +181,64 @@ let test () =
       ([7], part_two_larger_prog, 999);
       ([8], part_two_larger_prog, 1000);
       ([9], part_two_larger_prog, 1001);
-      ([], [1102; 34915192; 34915192; 7; 4; 7; 99; 0], 1219070632396864)
-    ]
+      ([], [1102; 34915192; 34915192; 7; 4; 7; 99; 0], 1219070632396864);
+      ([], [11101; 1337; 0; 1985; 109; 2000; 109; 19; 204; -34; 99], 1337);
+      ([], [109; 2; 204; 2; 99], 99);
+      ([1], day9_data, 3839402290);
+      ([2], day9_data, 35734)
+    ] [@ocamlformat "disable=true"]
+  in
+  let tests =
+    List.map
+      ~f:(fun (i, d, e) -> (i, List.map ~f:Z.of_int d, [ Z.of_int e ]))
+      tests
+  in
+  let tests =
+    tests
+    @ [
+        ( [],
+          [ Z.of_int 104; Z.of_string "1125899906842624"; Z.of_int 99 ],
+          [ Z.of_string "1125899906842624" ] );
+        ([], day9_quine, List.rev day9_quine);
+      ]
   in
   let check i (input, data, expected) =
-    let expected = Z.of_int expected in
+    let check_output act exp index =
+      if Z.Compare.(act = exp) then Result.Ok (index + 1)
+      else
+        Result.Error
+          (Printf.sprintf "mismatch at index %d: actual %s vs expected: %s"
+             index (Z.to_string act) (Z.to_string exp))
+    in
+
     let res_state = run input data in
-    let res = res_state.output |> List.hd_exn in
-    (* Printf.printf "result %d: %d, expected: %d\n" i res expected; *)
-    if Z.Compare.(res = expected) then Printf.printf "Test %d succeeded\n" i
+    (* let res = res_state.output |> List.hd_exn in *)
+    if List.length expected <> List.length res_state.output then
+      Printf.printf
+        "error in test %d, expected vs actual number of ouputs doesn't match\n"
+        i
     else
-      Printf.printf "error in test %d, actual: %s vs expected %s\n" i (Z.to_string res)
-        (Z.to_string expected)
+      let check' res act exp = Result.bind res ~f:(check_output act exp) in
+      match
+        List.fold2_exn res_state.output expected ~f:check' ~init:(Result.Ok 0)
+      with
+      | Error msg -> Printf.printf "error in test %d: %s\n" i msg
+      | Ok _ -> Printf.printf "Test %d succeeded\n" i
   in
   List.iteri ~f:check tests
-    [@@ocamlformat "disable=true"]
 
 let _ = test ()
 
 let solve () =
   (* test (); *)
-  let first_line = Aoc_utils.read_file "5/data.txt" |> List.hd_exn in
+  let first_line = Aoc_utils.read_file "9/data.txt" |> List.hd_exn in
   let numbers_str = String.split_on_chars ~on:[ ',' ] first_line in
-  let initial_numbers = List.map ~f:Int.of_string numbers_str in
+  let initial_numbers = List.map ~f:Z.of_string numbers_str in
 
   let part_1_final_state = run [ 1 ] initial_numbers in
   let part_1_result = part_1_final_state.output |> List.hd_exn in
 
-  let part_2_final_state = run [ 5 ] initial_numbers in
+  let part_2_final_state = run [ 2 ] initial_numbers in
   let part_2_result = part_2_final_state.output |> List.hd_exn in
 
   [ Z.to_string part_1_result; Z.to_string part_2_result ]
