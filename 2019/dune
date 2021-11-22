@@ -3,7 +3,7 @@
   (public_name aoc2019)
   (package aoc2019)
   (modes native)
-  (preprocess (pps ppx_deriving.std ppx_deriving_yojson))
+  (preprocess (pps ppx_deriving.std ppx_deriving_yojson ppx_compare ppx_sexp_conv ppx_hash))
   (libraries core str zarith))
 
 (copy_files# 1/*.ml*)
@@ -14,3 +14,4 @@
 (copy_files# 6/*.ml*)
 (copy_files# 7/*.ml*)
 (copy_files# 9/*.ml*)
+(copy_files# 10/*.ml*)
