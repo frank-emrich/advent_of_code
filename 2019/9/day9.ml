@@ -1,17 +1,17 @@
 open! Core
-
 module IntMap = Core.Int.Map
+(* module Z = Zarith.Z *)
 
 type state = {
-  input : int list;
-  output : int list;
-  data : int IntMap.t;
+  input : Z.t list;
+  output : Z.t list;
+  data : Z.t IntMap.t;
   relative_base : int;
   stop : bool;
   index : int;
 }
 
-let make_op_fun (op_code : int) : state -> (int * int) array -> state =
+let make_op_fun (op_code : int) : state -> (Z.t * int) array -> state =
   let inc_index i args = i + Array.length args + 1 in
   let mk_arith op state args =
     let result = op (fst args.(0)) (fst args.(1)) in
@@ -19,23 +19,23 @@ let make_op_fun (op_code : int) : state -> (int * int) array -> state =
     let new_data = IntMap.set state.data ~key:update_index ~data:result in
     { state with data = new_data; index = inc_index state.index args }
   in
-  let mk_cond_jmp op state args =
+  let mk_cond_jmp (op : Z.t -> bool) state args =
     if op (fst args.(0)) then
-      let alt_value = fst args.(1) in
+      let alt_value = fst args.(1) |> Z.to_int in
       { state with index = alt_value }
     else { state with index = inc_index state.index args }
   in
   let mk_comp op state args =
-    let result = if op (fst args.(0)) (fst args.(1)) then 1 else 0 in
+    let result = if op (fst args.(0)) (fst args.(1)) then Z.one else Z.zero in
     let new_data = IntMap.set state.data ~key:(snd args.(2)) ~data:result in
     { state with data = new_data; index = inc_index state.index args }
   in
   let mk_adjust_relative_base state args =
-    { state with relative_base = state.relative_base + fst args.(0) }
+    { state with relative_base = state.relative_base + (fst args.(0) |> Z.to_int) }
   in
   match op_code with
-  | 1 -> mk_arith ( + )
-  | 2 -> mk_arith ( * )
+  | 1 -> mk_arith ( Z.( + ) )
+  | 2 -> mk_arith ( Z. ( * ) )
   | 3 ->
       fun state args ->
         let next_input = List.hd_exn state.input in
@@ -56,10 +56,10 @@ let make_op_fun (op_code : int) : state -> (int * int) array -> state =
           output = fst args.(0) :: state.output;
           index = inc_index state.index args;
         }
-  | 5 -> mk_cond_jmp (( <> ) 0)
-  | 6 -> mk_cond_jmp (( = ) 0)
-  | 7 -> mk_comp ( < )
-  | 8 -> mk_comp ( = )
+  | 5 -> mk_cond_jmp (( Z.Compare.( <> ) ) Z.zero)
+  | 6 -> mk_cond_jmp (( Z.Compare.( = ) ) Z.zero)
+  | 7 -> mk_comp ( Z.Compare.( < ) )
+  | 8 -> mk_comp ( Z.Compare.( = ) )
   | 9 -> mk_adjust_relative_base
   | 99 -> fun state _args -> { state with stop = true }
   | bad -> failwith @@ Printf.sprintf "unexpected op_code: %d\n" bad
@@ -94,22 +94,22 @@ let parse_op_spec op_spec =
   (op_code, param_count, param_spec)
 
 let read_memory state address =
-  Option.value ~default:0 (IntMap.find state.data address)
+  Option.value ~default:Z.zero (IntMap.find state.data address)
 
 let fetch_args state arg_index param_count param_specs =
-  let args = Array.create ~len:param_count (0, 0) in
+  let args = Array.create ~len:param_count (Z.zero, 0) in
   let fetch index = function
     | `Immediate ->
         let v = read_memory state (arg_index + index) in
-        args.(index) <- (v, v)
+        args.(index) <- (v, v |> Z.to_int)
     | `Parameter ->
-        let indirect_index = read_memory state (arg_index + index) in
+        let indirect_index = Z.to_int (read_memory state (arg_index + index)) in
         let indirect_result = read_memory state indirect_index in
         (* Printf.printf "indirect index is %d\n" indirect_index; *)
         args.(index) <- (indirect_result, indirect_index)
     | `Relative ->
-        let relative_index =
-          read_memory state (arg_index + index) + state.relative_base
+        let relative_index : int=
+          (Z.to_int (read_memory state (arg_index + index))) + state.relative_base
         in
         let relative_result = read_memory state relative_index in
         args.(index) <- (relative_result, relative_index)
@@ -120,7 +120,7 @@ let fetch_args state arg_index param_count param_specs =
 
 let rec eval (state : state) : state =
   let op_code, param_count, param_specs =
-    parse_op_spec (IntMap.find_exn state.data state.index)
+    parse_op_spec (IntMap.find_exn state.data state.index |> Z.to_int)
   in
   let args = fetch_args state (state.index + 1) param_count param_specs in
   let op_fun = make_op_fun op_code in
@@ -129,13 +129,13 @@ let rec eval (state : state) : state =
 
 let run input data =
   let mapify (data, index) num =
-    (IntMap.set data ~key:index ~data:num, index + 1)
+    (IntMap.set data ~key:index ~data:(Z.of_int num), index + 1)
   in
   let initial_state =
     {
       stop = false;
       output = [];
-      input;
+      input = List.map ~f:Z.of_int input;
       data = List.fold_left ~f:mapify ~init:(IntMap.empty, 0) data |> fst;
       relative_base = 0;
       index = 0;
@@ -168,13 +168,14 @@ let test () =
     ]
   in
   let check i (input, data, expected) =
+    let expected = Z.of_int expected in
     let res_state = run input data in
     let res = res_state.output |> List.hd_exn in
     (* Printf.printf "result %d: %d, expected: %d\n" i res expected; *)
-    if res = expected then Printf.printf "Test %d succeeded\n" i
+    if Z.Compare.(res = expected) then Printf.printf "Test %d succeeded\n" i
     else
-      Printf.printf "error in test %d, actual: %d vs expected %d\n" i res
-        expected
+      Printf.printf "error in test %d, actual: %s vs expected %s\n" i (Z.to_string res)
+        (Z.to_string expected)
   in
   List.iteri ~f:check tests
     [@@ocamlformat "disable=true"]
@@ -184,7 +185,7 @@ let _ = test ()
 let solve () =
   (* test (); *)
   let first_line = Aoc_utils.read_file "5/data.txt" |> List.hd_exn in
-  let numbers_str = String.split_on_chars ~on:[','] first_line in
+  let numbers_str = String.split_on_chars ~on:[ ',' ] first_line in
   let initial_numbers = List.map ~f:Int.of_string numbers_str in
 
   let part_1_final_state = run [ 1 ] initial_numbers in
@@ -193,4 +194,4 @@ let solve () =
   let part_2_final_state = run [ 5 ] initial_numbers in
   let part_2_result = part_2_final_state.output |> List.hd_exn in
 
-  [ string_of_int part_1_result; string_of_int part_2_result ]
+  [ Z.to_string part_1_result; Z.to_string part_2_result ]

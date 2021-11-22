@@ -4,7 +4,7 @@
   (package aoc2019)
   (modes native)
   (preprocess (pps ppx_deriving.std ppx_deriving_yojson))
-  (libraries core str))
+  (libraries core str zarith))
 
 (copy_files# 1/*.ml*)
 (copy_files# 2/*.ml*)
