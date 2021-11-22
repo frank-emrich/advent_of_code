@@ -38,7 +38,7 @@ module Float_approx = struct
     struct
   type t = float [@@deriving compare, sexp]
 
-  let epsilon = 0.0001
+  let epsilon = 0.000001
 
   (* type comparator_witness = Nothing.t *)
 
@@ -113,19 +113,25 @@ let parse_map map : t =
 
 end
 
-let map1 = ".#..#.....#####....#...##"
+let map1 =
+  {|.#..#
+.....
+#####
+....#
+...##|} [@ocamlformat "disable=true"]
 
 
 let best_asteroid ast_map =
-  let count_lines p1 lines = Set.fold ~init:0 ~f:(fun sum set -> sum + Set.length set) in
+  (* let count_in_set init lines = Set.fold ~init ~f:(fun sum set -> sum + Set.length set) in *)
+  let count_lines lines = Map.fold lines ~init:0 ~f:(fun ~key:_ ~data:set sum -> sum + Set.length set) in
   let point_to_observable = Map.map ast_map ~f:count_lines in
-  let choose_best ~key:point ~data:count ((max_point, max_count) as prev) =
+  let choose_best ~key:point ~data:count ((_, max_count) as prev) =
     if count >= max_count then
       (point, count)
     else
       prev
   in
-  let best_point, best_count = Map.fold point_to_observable ~f:choose_best ~init:((0, 0), -1) in
+  let _best_point, best_count = Map.fold point_to_observable ~f:(choose_best) ~init:((0, 0), -1) in
   best_count
 
 
@@ -133,4 +139,8 @@ let best_asteroid ast_map =
 
 
 
-let solve () = [ "123" ]
+let solve () =
+  let map1 = Asteroid_map.parse_map map1 in
+  let sol1 = best_asteroid map1 in
+  Printf.printf "solution for first map: %d\n" (sol1);
+  [Int.to_string sol1]
