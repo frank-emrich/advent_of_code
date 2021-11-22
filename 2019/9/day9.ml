@@ -1,4 +1,4 @@
-(* open! Core *)
+open! Core
 
 module IntMap = Core.Int.Map
 
@@ -38,7 +38,7 @@ let make_op_fun (op_code : int) : state -> (int * int) array -> state =
   | 2 -> mk_arith ( * )
   | 3 ->
       fun state args ->
-        let next_input = List.hd state.input in
+        let next_input = List.hd_exn state.input in
         let update_index = snd args.(0) in
         let new_data =
           IntMap.set state.data ~key:update_index ~data:next_input
@@ -46,7 +46,7 @@ let make_op_fun (op_code : int) : state -> (int * int) array -> state =
         {
           state with
           data = new_data;
-          input = List.tl state.input;
+          input = List.tl_exn state.input;
           index = inc_index state.index args;
         }
   | 4 ->
@@ -97,7 +97,7 @@ let read_memory state address =
   Option.value ~default:0 (IntMap.find state.data address)
 
 let fetch_args state arg_index param_count param_specs =
-  let args = Array.make param_count (0, 0) in
+  let args = Array.create ~len:param_count (0, 0) in
   let fetch index = function
     | `Immediate ->
         let v = read_memory state (arg_index + index) in
@@ -115,7 +115,7 @@ let fetch_args state arg_index param_count param_specs =
         args.(index) <- (relative_result, relative_index)
   in
 
-  List.iteri fetch param_specs;
+  List.iteri ~f:fetch param_specs;
   args
 
 let rec eval (state : state) : state =
@@ -136,7 +136,7 @@ let run input data =
       stop = false;
       output = [];
       input;
-      data = List.fold_left mapify (IntMap.empty, 0) data |> fst;
+      data = List.fold_left ~f:mapify ~init:(IntMap.empty, 0) data |> fst;
       relative_base = 0;
       index = 0;
     }
@@ -169,28 +169,28 @@ let test () =
   in
   let check i (input, data, expected) =
     let res_state = run input data in
-    let res = res_state.output |> List.hd in
+    let res = res_state.output |> List.hd_exn in
     (* Printf.printf "result %d: %d, expected: %d\n" i res expected; *)
     if res = expected then Printf.printf "Test %d succeeded\n" i
     else
       Printf.printf "error in test %d, actual: %d vs expected %d\n" i res
         expected
   in
-  List.iteri check tests
+  List.iteri ~f:check tests
     [@@ocamlformat "disable=true"]
 
 let _ = test ()
 
 let solve () =
   (* test (); *)
-  let first_line = Aoc_utils.read_file "5/data.txt" |> List.hd in
-  let numbers_str = String.split_on_char ',' first_line in
-  let initial_numbers = List.map int_of_string numbers_str in
+  let first_line = Aoc_utils.read_file "5/data.txt" |> List.hd_exn in
+  let numbers_str = String.split_on_chars ~on:[','] first_line in
+  let initial_numbers = List.map ~f:Int.of_string numbers_str in
 
   let part_1_final_state = run [ 1 ] initial_numbers in
-  let part_1_result = part_1_final_state.output |> List.hd in
+  let part_1_result = part_1_final_state.output |> List.hd_exn in
 
   let part_2_final_state = run [ 5 ] initial_numbers in
-  let part_2_result = part_2_final_state.output |> List.hd in
+  let part_2_result = part_2_final_state.output |> List.hd_exn in
 
   [ string_of_int part_1_result; string_of_int part_2_result ]
