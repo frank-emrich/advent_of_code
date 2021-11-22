@@ -2,70 +2,68 @@ open! Core
 module IntMap = Core.Int.Map
 (* module Z = Zarith.Z *)
 
-module type State =
-sig
+module type State = sig
   type t
 
-
   val output : t -> Z.t list
+
   val relative_base : t -> int
+
   val pc : t -> int
+
   val is_final : t -> bool
 
   val with_pc : t -> int -> t
+
   val with_relative_base : t -> int -> t
+
   val pop_input_exn : t -> t * Z.t
+
   val push_output : t -> Z.t -> t
 
   val read_memory : t -> int -> Z.t
+
   val write_memory : t -> int -> Z.t -> t
 
   val stop : t -> t
 
-  val create_initial : input:(Z.t list) -> initial_data:(Z.t list) -> t
-
+  val create_initial : input:Z.t list -> initial_data:Z.t list -> t
 end
 
+module Common_state = struct
+  type 'a state = {
+    input : Z.t list;
+    output : Z.t list;
+    data : 'a;
+    relative_base : int;
+    stop : bool;
+    index : int;
+  }
 
-module Common_state =
-struct
-  type 'a state =  {
-  input : Z.t list;
-  output : Z.t list;
-  data : 'a;
-  relative_base : int;
-  stop : bool;
-  index : int;
-}
+  let pop_input_exn s =
+    ({ s with input = List.tl_exn s.input }, List.hd_exn s.input)
 
-  let pop_input_exn s = {s with input = List.tl_exn s.input}, List.hd_exn s.input
   let output s = s.output
+
   let relative_base s = s.relative_base
+
   let pc s = s.index
+
   let is_final s = s.stop
 
-  let with_pc s pc = {s with index = pc}
-  let with_relative_base s relative_base  = {s with relative_base}
+  let with_pc s pc = { s with index = pc }
 
-  let push_output s new_out = {s with output = new_out :: s.output }
+  let with_relative_base s relative_base = { s with relative_base }
 
-  let stop s = {s with stop = true}
+  let push_output s new_out = { s with output = new_out :: s.output }
+
+  let stop s = { s with stop = true }
 
   let create input data =
-    {
-      stop = false;
-      output = [];
-      input;
-      data;
-      relative_base = 0;
-      index = 0;
-    }
-
+    { stop = false; output = []; input; data; relative_base = 0; index = 0 }
 end
 
-
-module Pure_state =
-struct
+module Pure_state = struct
   include Common_state
 
   type t = Z.t IntMap.t state
@@ -83,6 +81,24 @@ struct
     let data =
       List.fold_left ~f:mapify ~init:(IntMap.empty, 0) initial_data |> fst
     in
+    create input data
+end
+
+module Mutable_state = struct
+  include Common_state
+
+  type t = (int, Z.t) Hashtbl.t state
+
+  let read_memory state address =
+    Option.value ~default:Z.zero (Hashtbl.find state.data address)
+
+  let write_memory state address value =
+    Hashtbl.set state.data ~key:address ~data:value;
+    state
+
+  let create_initial ~input ~initial_data =
+    let data = Hashtbl.create (module Int) in
+    List.iteri initial_data ~f:(fun i num -> Hashtbl.set data ~key:i ~data:num);
     create input data
 end
 
@@ -210,20 +226,12 @@ module Intcode_machine (State : State) = struct
       State.create_initial
         ~input:(List.map ~f:Z.of_int input)
         ~initial_data:data
-      (* { *)
-      (*   stop = false; *)
-      (*   output = []; *)
-      (*   input = *)
-      (*   data = List.fold_left ~f:mapify ~init:(IntMap.empty, 0) data |> fst; *)
-      (*   relative_base = 0; *)
-      (*   index = 0; *)
-      (* } *)
     in
     eval initial_state
 end
 
-module M = Intcode_machine (Pure_state)
-open Pure_state
+module M = Intcode_machine (Mutable_state)
+open Mutable_state
 open M
 
 let test () =
