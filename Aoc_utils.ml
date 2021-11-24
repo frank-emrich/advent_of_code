@@ -9,3 +9,5 @@ let read_file path =
        prev_lines
   in
   add_line [] |> List.rev
+
+let read_whole_file path =Core.In_channel.read_all path
