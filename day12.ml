@@ -34,7 +34,8 @@ type system = moon list
 
 let total_energy_of_system system =
   List.fold system
-    ~f:(fun energy moon -> energy + kinetic_energy moon * potential_energy moon)
+    ~f:(fun energy moon ->
+      energy + (kinetic_energy moon * potential_energy moon))
     ~init:0
 
 let simulate_step (state : system) =
