@@ -9,6 +9,8 @@ module Color = struct
     | _ -> failwith "illegal color int"
 
   let to_int = function Black -> 0 | White -> 1
+
+  let to_char = function Black -> ' ' | White -> 'X'
 end
 
 module Direction = struct
@@ -30,9 +32,9 @@ module Direction = struct
     | 3 -> Left
     | bad -> failwith (Printf.sprintf "bad direction: %d\n" bad)
 
-  let turn_left d = ((to_int d + 3) mod 4) |> of_int_exn
+  let turn_left d = (to_int d + 3) mod 4 |> of_int_exn
 
-  let turn_right d = ((to_int d + 5) mod 4) |> of_int_exn
+  let turn_right d = (to_int d + 5) mod 4 |> of_int_exn
 
   let to_delta_xy = function
     | Up -> (0, 1)
@@ -62,10 +64,45 @@ module Field = struct
   let color_at field point =
     Option.value ~default:initial_color (Map.find field point)
 
-  let set_color_at field point color =
-    Map.set field ~key:point ~data:color
+  let set_color_at field point color = Map.set field ~key:point ~data:color
 
   let initial = Map.empty (module Point)
+
+  (** Returns bottom left and top right point such that the resulting rectangle encloses all points *)
+  let bounding_box field =
+    let update_bounds ~key:(x, y) ~data:_ (min_x, min_y, max_x, max_y) =
+      let min_x = min min_x x in
+      let min_y = min min_y y in
+      let max_x = max max_x x in
+      let max_y = max max_y y in
+      (min_x, min_y, max_x, max_y)
+    in
+
+    let origin_bounds = (0, 0, 0, 0) in
+    let min_x, min_y, max_x, max_y =
+      Map.fold field ~f:update_bounds ~init:origin_bounds
+    in
+    ((min_x, min_y), (max_x, max_y))
+
+  let show field =
+    let (((min_x, min_y), (max_x, max_y)) as _b_box) = bounding_box field in
+    let width = max_x - min_x + 1 in
+    let height = max_y - min_y + 1 in
+    let shift_x x = x - min_x in
+    let shift_y y = y - min_y in
+    let field_array =
+      Array.make_matrix ~dimx:width ~dimy:height (Color.to_char Color.Black)
+    in
+
+    let set_color ~key:(x, y) ~data:color () =
+      field_array.(shift_x x).(shift_y y) <- Color.to_char color
+    in
+    Map.fold field ~f:set_color ~init:();
+
+    let convert_row row = Array.to_list row |> String.of_char_list in
+    let rows = Array.map field_array ~f:convert_row in
+    let rows = Array.to_list rows in
+    String.concat ~sep:"\n" rows
 end
 
 module Painting_robot = struct
@@ -79,9 +116,9 @@ module Painting_robot = struct
     colored_fields : (Point.t, Point.comparator_witness) Set.t;
   }
 
-  let initial_state =
+  let initial_state color_of_first =
     {
-      field = Field.initial;
+      field = Map.set Field.initial ~key:(0, 0) ~data:color_of_first;
       position = (0, 0);
       direction = Up;
       colored_fields = Set.empty (module Point);
@@ -91,7 +128,7 @@ module Painting_robot = struct
 
   let load_initial_prog_state () = M.create_initial_state "11/data.txt"
 
-  let run () =
+  let run initial_color =
     let initial_m_state = load_initial_prog_state () in
 
     let provide_color m_state r_state =
@@ -116,12 +153,16 @@ module Painting_robot = struct
               Set.add r_state.colored_fields r_state.position
             else r_state.colored_fields
           in
-          let new_field = Field.set_color_at r_state.field r_state.position paint_color in
+          let new_field =
+            Field.set_color_at r_state.field r_state.position paint_color
+          in
           let new_pos = Point.move r_state.position new_dir in
-          {field = new_field;
-           position = new_pos;
-           direction = new_dir;
-           colored_fields = new_colored}
+          {
+            field = new_field;
+            position = new_pos;
+            direction = new_dir;
+            colored_fields = new_colored;
+          }
       | _ -> r_state
     in
 
@@ -138,10 +179,15 @@ module Painting_robot = struct
     in
 
     let m_state = M.eval initial_m_state in
-    go initial_state m_state
+    go (initial_state initial_color) m_state
 end
 
 let solve () =
-  let final_r_state = Painting_robot.run () in
-  let painted_count = Set.length final_r_state.colored_fields in
-  [ Int.to_string painted_count ]
+  let run_robot initial_color = Painting_robot.run initial_color in
+
+  let part1_final = run_robot Black in
+  let part_1 = Set.length part1_final.colored_fields |> Int.to_string in
+
+  let part2_final = run_robot White in
+
+  [ part_1; Field.show part2_final.field ]
