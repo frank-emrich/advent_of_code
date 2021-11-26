@@ -43,7 +43,7 @@ let simulate_step (state : system) =
     let calculate_delta unpack pack =
       let v1 = unpack scrutinee.position in
       let v2 = unpack other.position in
-      if v1 < v2 then pack (-1) else if v1 = v2 then pack 0 else pack 1
+      if v1 < v2 then pack 1 else if v1 = v2 then pack 0 else pack (-1)
     in
     let open Vector3 in
     let delta_vx = calculate_delta get_x set_x in
