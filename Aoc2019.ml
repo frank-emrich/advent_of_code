@@ -19,7 +19,8 @@ let print_solutions =
       ((module Day9), "day 9");
       ((module Day10), "day 10");
       ((module Day11), "day 11");
-      ((module Day12), "day 12")
+      ((module Day12), "day 12");
+      ((module Day13), "day 13")
     ]
 
   in
