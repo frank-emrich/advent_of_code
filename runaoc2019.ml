@@ -7,7 +7,8 @@ end
 
 
 let print_solutions =
-  let modules : ((module AOC_SOLVER) * string) list=
+  let modules : ((module AOC_SOLVER) * string) list =
+    let open Aoc2019 in
     [
       ((module Day1), "day 1");
       ((module Day2), "day 2");

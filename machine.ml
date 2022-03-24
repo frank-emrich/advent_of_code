@@ -24,6 +24,8 @@ module type State = sig
 
   val push_output : t -> Z.t -> t
 
+  val clear_output : t -> t
+
   val push_input : t -> Z.t -> t
 
   val read_memory : t -> int -> Z.t
@@ -69,6 +71,8 @@ module Common_state = struct
   let with_relative_base s relative_base = { s with relative_base }
 
   let push_output s new_out = { s with output = new_out :: s.output }
+
+  let clear_output s = {s with output = [] }
 
   let stop s = { s with status = Finished }
 
@@ -242,6 +246,16 @@ module Make (State : State) = struct
     if State.is_finished new_state || State.is_awaiting_input new_state then
       new_state
     else eval new_state
+
+
+  let rec eval_input_loop state ~get_input =
+    let new_state = eval state in
+    if State.is_awaiting_input new_state then
+      State.push_input new_state (get_input new_state) |> eval_input_loop ~get_input
+    else
+      new_state
+
+
 
   let run input data =
     let initial_state =
